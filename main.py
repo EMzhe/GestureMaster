@@ -125,14 +125,22 @@ class RecognitionWorker(QThread):
                         time.sleep(0.01)
                         continue
 
-                    # 【修复】发送帧数据的拷贝（bytes 格式，完全线程安全）
-                    h, w, ch = frame.shape
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    self.frame_ready.emit(frame_rgb.tobytes(), h, w, ch)
-
                     # 手部检测
                     hands = self._detector.detect(frame)
                     self._consecutive_errors = 0  # 重置错误计数
+
+                    # 在帧上绘制手部关键点标注（辅助线 + 编号）
+                    if hands:
+                        annotated_frame = self._detector.draw_landmarks(
+                            frame, hands, draw_connections=True, draw_indices=True
+                        )
+                    else:
+                        annotated_frame = frame
+
+                    # 发送标注后的帧（RGB 格式，bytes 线程安全）
+                    h, w, ch = annotated_frame.shape
+                    frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+                    self.frame_ready.emit(frame_rgb.tobytes(), h, w, ch)
 
                     if hands:
                         hand = hands[0]
@@ -472,9 +480,6 @@ class GestureMasterApp:
                     except Exception as e:
                         logger.warning(f"测试动作执行异常: {e}")
                 break
-
-        # 更新测试页面
-        self._window._test_page.add_test_history(gesture_key)
 
     def _on_binding_changed(self, gesture_key: str, binding_data: dict):
         """Handle binding change from gesture manager"""

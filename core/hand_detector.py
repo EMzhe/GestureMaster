@@ -254,11 +254,48 @@ class HandDetector:
     # 可视化方法
     # ------------------------------------------------------------------
 
+    # 分指颜色（BGR）：拇指=红, 食指=绿, 中指=蓝, 无名指=紫, 小指=青
+    _FINGER_COLORS = {
+        "thumb":  (0, 0, 255),     # 红
+        "index":  (0, 200, 0),     # 绿
+        "middle": (255, 150, 0),   # 蓝
+        "ring":   (200, 0, 200),   # 紫
+        "pinky":  (255, 200, 0),   # 青
+    }
+
+    # 每根手指的关键点索引（含掌指关节）
+    _FINGER_LANDMARK_INDICES = {
+        "thumb":  [1, 2, 3, 4],
+        "index":  [5, 6, 7, 8],
+        "middle": [9, 10, 11, 12],
+        "ring":   [13, 14, 15, 16],
+        "pinky":  [17, 18, 19, 20],
+    }
+
+    # 骨架连接线定义（每条线两端的关键点索引）
+    _CONNECTIONS = [
+        # 手腕到各手指根部
+        (0, 1), (0, 5), (0, 9), (0, 13), (0, 17),
+        # 拇指
+        (1, 2), (2, 3), (3, 4),
+        # 食指
+        (5, 6), (6, 7), (7, 8),
+        # 中指
+        (9, 10), (10, 11), (11, 12),
+        # 无名指
+        (13, 14), (14, 15), (15, 16),
+        # 小指
+        (17, 18), (18, 19), (19, 20),
+        # 掌心连接
+        (5, 9), (9, 13), (13, 17),
+    ]
+
     def draw_landmarks(
         self,
         image: np.ndarray,
         hand_results: List[HandResult],
         draw_connections: bool = True,
+        draw_indices: bool = True,
     ) -> np.ndarray:
         """
         在图像上绘制手部关键点和连接线。
@@ -271,6 +308,8 @@ class HandDetector:
             detect() 返回的检测结果。
         draw_connections : bool
             是否绘制关键点之间的连接线，默认 True。
+        draw_indices : bool
+            是否在关键点旁标注编号，默认 True。
 
         Returns
         -------
@@ -282,39 +321,76 @@ class HandDetector:
         for hand in hand_results:
             h, w, _ = annotated.shape
 
-            # 将 Landmark 列表转换为 MediaPipe 格式以便使用内置绘图工具
-            mp_hand_landmark_list = self._create_mp_landmark_list(
-                hand.landmarks
-            )
+            # 构建像素坐标映射
+            pts = {}
+            for i, lm in enumerate(hand.landmarks):
+                pts[i] = (int(lm.x * w), int(lm.y * h))
 
             if draw_connections:
-                # 绘制连接线和关键点
-                self._mp_drawing.draw_landmarks(
-                    annotated,
-                    mp_hand_landmark_list,
-                    self._mp_hands.HAND_CONNECTIONS,
-                    self._mp_drawing_styles.get_default_hand_landmarks_style(),
-                    self._mp_drawing_styles.get_default_hand_connections_style(),
-                )
-            else:
-                # 仅绘制关键点
-                for lm in hand.landmarks:
-                    cx, cy = int(lm.x * w), int(lm.y * h)
-                    cv2.circle(annotated, (cx, cy), 5, (0, 255, 0), -1)
+                # 按手指分色绘制骨架连接线
+                # 先画掌心连线（灰色）
+                palm_connections = [(0, 1), (0, 5), (0, 9), (0, 13), (0, 17), (5, 9), (9, 13), (13, 17)]
+                for i_start, i_end in palm_connections:
+                    if i_start in pts and i_end in pts:
+                        cv2.line(annotated, pts[i_start], pts[i_end], (180, 180, 180), 2)
 
-            # 在手腕上方标注手性信息
-            wrist = hand.landmarks[0]
-            cx, cy = int(wrist.x * w), int(wrist.y * h)
-            label = f"{hand.handedness} ({hand.score:.0%})"
-            cv2.putText(
-                annotated,
-                label,
-                (cx - 30, cy - 20),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 255, 0),
-                2,
-            )
+                # 再画每根手指的连线（分色）
+                finger_connections = {
+                    "thumb":  [(1, 2), (2, 3), (3, 4)],
+                    "index":  [(5, 6), (6, 7), (7, 8)],
+                    "middle": [(9, 10), (10, 11), (11, 12)],
+                    "ring":   [(13, 14), (14, 15), (15, 16)],
+                    "pinky":  [(17, 18), (18, 19), (19, 20)],
+                }
+                for finger, conns in finger_connections.items():
+                    color = self._FINGER_COLORS[finger]
+                    for i_start, i_end in conns:
+                        if i_start in pts and i_end in pts:
+                            cv2.line(annotated, pts[i_start], pts[i_end], color, 2)
+
+            # 绘制关键点（分指颜色 + 白色圆心）
+            for finger, indices in self._FINGER_LANDMARK_INDICES.items():
+                color = self._FINGER_COLORS[finger]
+                for idx in indices:
+                    if idx in pts:
+                        cv2.circle(annotated, pts[idx], 7, color, -1)
+                        cv2.circle(annotated, pts[idx], 3, (255, 255, 255), -1)
+
+            # 手腕点（黄色）
+            if 0 in pts:
+                cv2.circle(annotated, pts[0], 8, (0, 255, 255), -1)
+                cv2.circle(annotated, pts[0], 4, (255, 255, 255), -1)
+
+            # 关键点编号标注
+            if draw_indices:
+                for i, lm in enumerate(hand.landmarks):
+                    if i in pts:
+                        px, py = pts[i]
+                        # 编号放在点的右上方偏移
+                        tx, ty = px + 10, py - 10
+                        # 背景色提高可读性
+                        cv2.putText(
+                            annotated, str(i), (tx + 1, ty + 1),
+                            cv2.FONT_HERSHEY_PLAIN, 1.0, (0, 0, 0), 2,
+                        )
+                        cv2.putText(
+                            annotated, str(i), (tx, ty),
+                            cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), 1,
+                        )
+
+            # 在手腕上方标注手性和置信度
+            if 0 in pts:
+                cx, cy = pts[0]
+                label = f"{hand.handedness} ({hand.score:.0%})"
+                # 阴影
+                cv2.putText(
+                    annotated, label, (cx - 29, cy - 19),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 3,
+                )
+                cv2.putText(
+                    annotated, label, (cx - 30, cy - 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2,
+                )
 
         return annotated
 

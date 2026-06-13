@@ -20,7 +20,6 @@ from ui.camera_widget import CameraWidget
 from ui.gesture_settings import GestureSettingsPage
 from ui.action_settings import ActionSettingsPage
 from ui.gesture_test import GestureTestPage
-from ui.custom_gesture import CustomGesturePage
 from ui.mouse_control_page import MouseControlPage
 from ui.gesture_manager_page import GestureManagerPage
 from ui.gesture_test_page import GestureTestPageImproved
@@ -547,7 +546,6 @@ class MainWindow(QMainWindow):
         """更新摄像头画面。"""
         self._preview_page.camera_widget.set_frame(cv_image)
         self._test_page_improved.update_camera_frame(cv_image)
-        self._custom_gesture_page.update_camera_frame(cv_image)
 
     def update_gesture(self, gesture_key: str, emoji: str, confidence: float, action: str = "", params: dict = None):
         """更新识别结果。"""

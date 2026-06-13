@@ -241,40 +241,6 @@ class GestureClassifier:
             elif index_tip.x > index_mcp.x + 0.05:
                 return GestureResult("pointing_right", "static", 0.8, "指向右")
 
-        # --- 比耶: 食指和中指伸展 ---
-        if (fingers["index"] and fingers["middle"] and
-            not fingers["ring"] and not fingers["pinky"]):
-            return GestureResult("peace", "static", 0.9, "比耶")
-
-        # --- 食指朝上: 仅食指伸展 ---
-        if (fingers["index"] and not fingers["middle"] and
-            not fingers["ring"] and not fingers["pinky"] and not fingers["thumb"]):
-            # 判断方向
-            if index_tip.y < index_mcp.y:
-                return GestureResult("pointing_up", "static", 0.9, "食指朝上")
-            elif index_tip.x < index_mcp.x - 0.05:
-                return GestureResult("pointing_left", "static", 0.85, "指向左")
-            elif index_tip.x > index_mcp.x + 0.05:
-                return GestureResult("pointing_right", "static", 0.85, "指向右")
-
-        # --- 三指: 拇指+食指+中指伸展 ---
-        if (fingers["thumb"] and fingers["index"] and fingers["middle"] and
-            not fingers["ring"] and not fingers["pinky"]):
-            return GestureResult("three_fingers", "static", 0.85, "三指")
-
-        # --- 摇滚: 食指和小指伸展 ---
-        if (fingers["index"] and not fingers["middle"] and
-            not fingers["ring"] and fingers["pinky"]):
-            return GestureResult("rock", "static", 0.85, "摇滚手势")
-
-        # --- 食指指向左右（带拇指） ---
-        if (fingers["index"] and not fingers["middle"] and
-            not fingers["ring"] and not fingers["pinky"]):
-            if index_tip.x < index_mcp.x - 0.05:
-                return GestureResult("pointing_left", "static", 0.8, "指向左")
-            elif index_tip.x > index_mcp.x + 0.05:
-                return GestureResult("pointing_right", "static", 0.8, "指向右")
-
         return GestureResult("none", "static", 0.0, "未识别")
 
     def classify_dynamic(self) -> Optional[GestureResult]:
